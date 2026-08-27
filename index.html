@@ -66,7 +66,7 @@
   .spacer { flex: 1; }
 
   .select-chip {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .05em;
+    font-family: 'Barlow', system-ui, sans-serif; font-size: 16px;
     background: var(--stage); border: 1px solid var(--line); color: var(--muted);
     padding: 8px 10px; border-radius: 2px; cursor: pointer; max-width: 200px;
   }
@@ -113,7 +113,7 @@
     color: var(--bone); font-family: 'Barlow', sans-serif; font-size: 16px;
     padding: 8px 8px; outline: none; width: 100%; border-radius: 2px 2px 0 0;
   }
-  .input.mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+  .input.mono { font-family: 'JetBrains Mono', monospace; font-size: 16px; }
   .input:focus { border-bottom-color: var(--brass); }
   .input::placeholder { color: var(--faint); }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 20px; }
@@ -158,7 +158,7 @@
   .chord-field:focus-within { border-bottom-color: var(--brass); }
   .chord-field input {
     border: none; background: none; color: var(--bone);
-    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    font-family: 'JetBrains Mono', monospace; font-size: 16px;
     padding: 8px 2px; width: 68px; outline: none;
   }
   .chord-field input::placeholder { color: var(--faint); }
@@ -177,9 +177,11 @@
 
   .row {
     display: flex; align-items: flex-start; gap: 14px;
-    padding: 15px 2px; border-bottom: 1px solid var(--line);
+    padding: 15px 0; border-bottom: 1px solid var(--line);
+    cursor: pointer;
   }
   .row:first-child { border-top: 1px solid var(--line); }
+  .row:hover { background: var(--panel-2); }
   .meat { flex: 1; min-width: 0; }
   .title { font-size: 17px; font-weight: 500; text-wrap: balance; padding-top: 3px; }
   .artist { color: var(--muted); font-weight: 400; font-size: 15px; }
@@ -199,35 +201,12 @@
   }
 
   .side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
-  .side-controls { display: flex; align-items: flex-start; gap: 6px; }
 
   .fret { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; }
   .fret-label {
     font-family: 'JetBrains Mono', monospace; font-size: 9px;
     letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
   }
-
-  .menu-wrap { position: relative; flex-shrink: 0; }
-  .menu-btn {
-    background: none; border: none; color: var(--faint); font-size: 19px; cursor: pointer;
-    padding: 6px 9px; line-height: 1; letter-spacing: 2px; border-radius: 2px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .menu-btn:hover, .menu-btn.on { color: var(--bone); background: var(--panel-2); }
-  .menu-dropdown {
-    position: absolute; right: 0; top: 100%; margin-top: 4px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
-    min-width: 130px; z-index: 20; box-shadow: 0 10px 28px rgba(0,0,0,.45);
-    overflow: hidden;
-  }
-  .menu-dropdown button {
-    display: block; width: 100%; text-align: left; background: none; border: none;
-    color: var(--bone); font-family: 'Barlow', sans-serif; font-size: 14px;
-    padding: 11px 14px; cursor: pointer;
-  }
-  .menu-dropdown button:hover { background: var(--panel-2); }
-  .menu-dropdown button.danger { color: var(--danger); }
-  .menu-dropdown .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
 
   .empty { border: 1px dashed var(--line); border-radius: 3px; padding: 42px 20px; text-align: center; }
   .empty p { color: var(--muted); margin: 0 0 6px; }
@@ -236,7 +215,7 @@
   .overlay {
     position: fixed; inset: 0; background: rgba(10,12,17,.72);
     align-items: center; justify-content: center; padding: 20px; z-index: 50;
-    display: none;
+    display: none; overscroll-behavior: contain;
   }
   .overlay:not([hidden]) { display: flex; }
   .overlay .panel { max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto; margin-bottom: 0; }
@@ -342,7 +321,7 @@
     </div>
     <div class="actions">
       <button class="primary solid" id="submit-btn">Add song</button>
-      <button class="ghost" id="cancel-btn">Cancel</button>
+      <button class="ghost" id="secondary-btn">Cancel</button>
     </div>
   </div>
 </div>
@@ -412,16 +391,39 @@
   var artistFilter = "";
   var open = false;
   var editingId = null;
-  var openMenuId = null;
   var pendingRemoveId = null;
   var draftStatus = "queued";
   var draftStyle = "strumming";
+
+  var scrollLockCount = 0;
+  var lockedScrollY = 0;
+  function lockBodyScroll() {
+    if (scrollLockCount === 0) {
+      lockedScrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = "-" + lockedScrollY + "px";
+      document.body.style.width = "100%";
+      document.body.style.overflow = "hidden";
+    }
+    scrollLockCount++;
+  }
+  function unlockBodyScroll() {
+    scrollLockCount = Math.max(0, scrollLockCount - 1);
+    if (scrollLockCount === 0) {
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      document.body.style.overflow = "";
+      window.scrollTo(0, lockedScrollY);
+    }
+  }
 
   var countEl = document.getElementById("count");
   var barEl = document.getElementById("bar");
   var panelOverlayEl = document.getElementById("panel-overlay");
   var panelHeadingEl = document.getElementById("panel-heading");
   var submitBtn = document.getElementById("submit-btn");
+  var secondaryBtn = document.getElementById("secondary-btn");
   var listEl = document.getElementById("list");
   var chordsWrapEl = document.getElementById("chords-wrap");
   var chordAddBtn = document.getElementById("chord-add-btn");
@@ -617,7 +619,6 @@
 
   function openAddPanel() {
     editingId = null;
-    openMenuId = null;
     fTitle.value = ""; fArtist.value = ""; fKey.value = "";
     fCapo.value = ""; fTuning.value = "";
     setupChordFields([]);
@@ -628,8 +629,12 @@
     renderStyleChips();
     panelHeadingEl.textContent = "Add song";
     submitBtn.textContent = "Add song";
+    secondaryBtn.textContent = "Cancel";
+    secondaryBtn.className = "ghost";
+    secondaryBtn.onclick = closePanel;
     open = true;
     panelOverlayEl.hidden = false;
+    lockBodyScroll();
     render();
   }
 
@@ -647,10 +652,13 @@
     renderProgressControl();
     renderStyleChips();
     panelHeadingEl.textContent = "Edit song";
-    submitBtn.textContent = "Save changes";
+    submitBtn.textContent = "Save";
+    secondaryBtn.textContent = "Remove";
+    secondaryBtn.className = "danger-btn";
+    secondaryBtn.onclick = function () { requestRemove(song); };
     open = true;
-    openMenuId = null;
     panelOverlayEl.hidden = false;
+    lockBodyScroll();
     render();
   }
 
@@ -659,6 +667,7 @@
     editingId = null;
     panelOverlayEl.hidden = true;
     closeArtistSuggestions();
+    unlockBodyScroll();
     render();
   }
 
@@ -702,7 +711,6 @@
   }
 
   submitBtn.addEventListener("click", submitPanel);
-  document.getElementById("cancel-btn").addEventListener("click", closePanel);
   document.getElementById("panel-close").addEventListener("click", closePanel);
   panelOverlayEl.addEventListener("click", function (e) {
     if (e.target === panelOverlayEl) closePanel();
@@ -718,23 +726,26 @@
 
   function requestRemove(song) {
     pendingRemoveId = song.id;
-    openMenuId = null;
     confirmTextEl.textContent = 'Remove "' + song.title + '" from your repertoire? This can’t be undone.';
     overlayEl.hidden = false;
+    lockBodyScroll();
     render();
   }
 
   function cancelRemove() {
     pendingRemoveId = null;
     overlayEl.hidden = true;
+    unlockBodyScroll();
   }
 
   function confirmRemove() {
+    var wasEditing = editingId === pendingRemoveId;
     songs = songs.filter(function (s) { return s.id !== pendingRemoveId; });
     writeAll(songs);
     pendingRemoveId = null;
     overlayEl.hidden = true;
-    render();
+    unlockBodyScroll();
+    if (wasEditing) closePanel(); else render();
   }
 
   document.getElementById("confirm-cancel").addEventListener("click", cancelRemove);
@@ -751,10 +762,6 @@
   });
 
   document.addEventListener("click", function (e) {
-    if (openMenuId !== null && !e.target.closest(".menu-wrap")) {
-      openMenuId = null;
-      render();
-    }
     if (!e.target.closest("#artist-autocomplete")) closeArtistSuggestions();
   });
 
@@ -845,18 +852,16 @@
 
       var metaParts = [
         s.songKey ? ("key " + s.songKey) : null,
-        (s.capo && s.capo !== "0") ? ("capo " + s.capo) : null,
+        (s.capo && s.capo !== "0") ? ("capo " + s.capo) : "No capo",
         (s.tuning && s.tuning !== "Standard") ? s.tuning : null
       ].filter(Boolean);
-      if (metaParts.length) {
-        var metaLine = document.createElement("div");
-        metaLine.className = "chordline";
-        var meta = document.createElement("span");
-        meta.className = "meta";
-        meta.textContent = metaParts.join("  ·  ");
-        metaLine.appendChild(meta);
-        meat.appendChild(metaLine);
-      }
+      var metaLine = document.createElement("div");
+      metaLine.className = "chordline";
+      var meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = metaParts.join("  ·  ");
+      metaLine.appendChild(meta);
+      meat.appendChild(metaLine);
 
       row.appendChild(meat);
 
@@ -868,9 +873,6 @@
       styleTag.textContent = styleOf(s.style || "strumming").label;
       side.appendChild(styleTag);
 
-      var sideControls = document.createElement("div");
-      sideControls.className = "side-controls";
-
       var progressDisplay = document.createElement("div");
       progressDisplay.className = "fret";
       progressDisplay.setAttribute("aria-label", "Progress: " + statusOf(s.status).label);
@@ -879,46 +881,11 @@
       progressLabel.textContent = statusOf(s.status).label;
       progressDisplay.appendChild(progressLabel);
       progressDisplay.appendChild(fretSVG(s.status));
-      sideControls.appendChild(progressDisplay);
+      side.appendChild(progressDisplay);
 
-      var menuWrap = document.createElement("div");
-      menuWrap.className = "menu-wrap";
-      var menuBtn = document.createElement("button");
-      menuBtn.className = "menu-btn" + (openMenuId === s.id ? " on" : "");
-      menuBtn.setAttribute("aria-label", "More actions for " + s.title);
-      menuBtn.setAttribute("aria-haspopup", "true");
-      menuBtn.textContent = "⋮";
-      menuBtn.addEventListener("click", function () {
-        openMenuId = openMenuId === s.id ? null : s.id;
-        render();
-      });
-      menuWrap.appendChild(menuBtn);
-
-      if (openMenuId === s.id) {
-        var dropdown = document.createElement("div");
-        dropdown.className = "menu-dropdown";
-
-        var editBtn = document.createElement("button");
-        editBtn.textContent = "Edit";
-        editBtn.addEventListener("click", function () { openEditPanel(s); });
-        dropdown.appendChild(editBtn);
-
-        var divider = document.createElement("hr");
-        divider.className = "divider";
-        dropdown.appendChild(divider);
-
-        var removeBtn = document.createElement("button");
-        removeBtn.className = "danger";
-        removeBtn.textContent = "Remove";
-        removeBtn.addEventListener("click", function () { requestRemove(s); });
-        dropdown.appendChild(removeBtn);
-
-        menuWrap.appendChild(dropdown);
-      }
-
-      sideControls.appendChild(menuWrap);
-      side.appendChild(sideControls);
       row.appendChild(side);
+
+      row.addEventListener("click", function () { openEditPanel(s); });
 
       listEl.appendChild(row);
     });

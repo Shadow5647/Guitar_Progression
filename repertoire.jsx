@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
+/* ------------------------------------------------------------------
+   DATA ACCESS LAYER
+   Every component talks to songRepo — never to storage directly.
+   To move to Supabase later, rewrite the methods below. Nothing else changes.
+------------------------------------------------------------------- */
+
 const KEY = "repertoire:songs";
 
 async function readAll() {
@@ -119,7 +125,6 @@ export default function Repertoire() {
   const [editingId, setEditingId] = useState(null);
   const [artistFilter, setArtistFilter] = useState("");
   const [draft, setDraft] = useState(blankDraft());
-  const [openMenuId, setOpenMenuId] = useState(null);
   const [pendingRemove, setPendingRemove] = useState(null);
   const [artistSuggestOpen, setArtistSuggestOpen] = useState(false);
   const titleRef = useRef(null);
@@ -133,12 +138,11 @@ export default function Repertoire() {
 
   useEffect(() => {
     const onDocClick = (e) => {
-      if (openMenuId !== null && !e.target.closest(".menu-wrap")) setOpenMenuId(null);
       if (artistSuggestOpen && !e.target.closest(".autocomplete")) setArtistSuggestOpen(false);
     };
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
-  }, [openMenuId, artistSuggestOpen]);
+  }, [artistSuggestOpen]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -150,6 +154,26 @@ export default function Repertoire() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   });
+
+  // Lock background scroll (iOS-safe) and keep the modal pinned/centered while it's open.
+  useEffect(() => {
+    const modalOpen = open || !!pendingRemove;
+    if (!modalOpen) return;
+    const scrollY = window.scrollY;
+    const { style } = document.body;
+    const prev = { position: style.position, top: style.top, width: style.width, overflow: style.overflow };
+    style.position = "fixed";
+    style.top = `-${scrollY}px`;
+    style.width = "100%";
+    style.overflow = "hidden";
+    return () => {
+      style.position = prev.position;
+      style.top = prev.top;
+      style.width = prev.width;
+      style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open, pendingRemove]);
 
   const distinctArtists = useMemo(() => {
     const seen = new Set();
@@ -170,14 +194,10 @@ export default function Repertoire() {
     return q ? distinctArtists.filter((a) => a.toLowerCase().includes(q)) : distinctArtists;
   }, [draft.artist, distinctArtists]);
 
-  const focusTitleSoon = () => requestAnimationFrame(() => titleRef.current && titleRef.current.focus());
-
   const openAdd = () => {
     setEditingId(null);
     setDraft(blankDraft());
-    setOpenMenuId(null);
     setOpen(true);
-    focusTitleSoon();
   };
 
   const openEdit = (song) => {
@@ -192,9 +212,7 @@ export default function Repertoire() {
       status: song.status || "queued",
       style: song.style || "strumming",
     });
-    setOpenMenuId(null);
     setOpen(true);
-    focusTitleSoon();
   };
 
   function closePanel() {
@@ -222,14 +240,13 @@ export default function Repertoire() {
     closePanel();
   };
 
-  const requestRemove = (song) => {
-    setPendingRemove(song);
-    setOpenMenuId(null);
-  };
+  const requestRemove = (song) => setPendingRemove(song);
   const cancelRemove = () => setPendingRemove(null);
   const confirmRemove = async () => {
-    setSongs(await songRepo.remove(pendingRemove.id));
+    const id = pendingRemove.id;
+    setSongs(await songRepo.remove(id));
     setPendingRemove(null);
+    if (editingId === id) closePanel();
   };
 
   const setField = (k) => (v) => setDraft((d) => ({ ...d, [k]: v }));
@@ -258,7 +275,11 @@ export default function Repertoire() {
         .wrap {
           background: var(--stage); color: var(--bone);
           font-family: 'Barlow', system-ui, sans-serif;
-          min-height: 100%; padding: 28px 18px 72px;
+          min-height: 100%;
+          padding: calc(env(safe-area-inset-top, 0px) + 28px)
+                   calc(env(safe-area-inset-right, 0px) + 18px)
+                   calc(env(safe-area-inset-bottom, 0px) + 72px)
+                   calc(env(safe-area-inset-left, 0px) + 18px);
         }
         .wrap * { box-sizing: border-box; }
         .inner { max-width: 640px; margin: 0 auto; }
@@ -283,7 +304,7 @@ export default function Repertoire() {
         .spacer { flex: 1; }
 
         .select-chip {
-          font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .05em;
+          font-family: 'Barlow', system-ui, sans-serif; font-size: 16px;
           background: var(--stage); border: 1px solid var(--line); color: var(--muted);
           padding: 8px 10px; border-radius: 2px; cursor: pointer; max-width: 200px;
         }
@@ -329,7 +350,7 @@ export default function Repertoire() {
           color: var(--bone); font-family: 'Barlow', sans-serif; font-size: 16px;
           padding: 8px 8px; outline: none; width: 100%; border-radius: 2px 2px 0 0;
         }
-        .input.mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+        .input.mono { font-family: 'JetBrains Mono', monospace; font-size: 16px; }
         .input:focus { border-bottom-color: var(--brass); }
         .input::placeholder { color: var(--faint); }
         .actions { display: flex; gap: 10px; align-items: center; margin-top: 20px; }
@@ -374,7 +395,7 @@ export default function Repertoire() {
         .chord-field:focus-within { border-bottom-color: var(--brass); }
         .chord-field input {
           border: none; background: none; color: var(--bone);
-          font-family: 'JetBrains Mono', monospace; font-size: 13px;
+          font-family: 'JetBrains Mono', monospace; font-size: 16px;
           padding: 8px 2px; width: 68px; outline: none;
         }
         .chord-field input::placeholder { color: var(--faint); }
@@ -393,9 +414,11 @@ export default function Repertoire() {
 
         .row {
           display: flex; align-items: flex-start; gap: 14px;
-          padding: 15px 2px; border-bottom: 1px solid var(--line);
+          padding: 15px 0; border-bottom: 1px solid var(--line);
+          cursor: pointer;
         }
         .row:first-child { border-top: 1px solid var(--line); }
+        .row:hover { background: var(--panel-2); }
         .meat { flex: 1; min-width: 0; }
         .title { font-size: 17px; font-weight: 500; text-wrap: balance; padding-top: 3px; }
         .artist { color: var(--muted); font-weight: 400; font-size: 15px; }
@@ -415,34 +438,12 @@ export default function Repertoire() {
         }
 
         .side { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
-        .side-controls { display: flex; align-items: flex-start; gap: 6px; }
 
         .fret { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; }
         .fret-label {
           font-family: 'JetBrains Mono', monospace; font-size: 9px;
           letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
         }
-
-        .menu-wrap { position: relative; flex-shrink: 0; }
-        .menu-btn {
-          background: none; border: none; color: var(--faint); font-size: 19px; cursor: pointer;
-          padding: 6px 9px; line-height: 1; letter-spacing: 2px; border-radius: 2px;
-        }
-        .menu-btn:hover, .menu-btn.on { color: var(--bone); background: var(--panel-2); }
-        .menu-dropdown {
-          position: absolute; right: 0; top: 100%; margin-top: 4px;
-          background: var(--panel); border: 1px solid var(--line); border-radius: 3px;
-          min-width: 130px; z-index: 20; box-shadow: 0 10px 28px rgba(0,0,0,.45);
-          overflow: hidden;
-        }
-        .menu-dropdown button {
-          display: block; width: 100%; text-align: left; background: none; border: none;
-          color: var(--bone); font-family: 'Barlow', sans-serif; font-size: 14px;
-          padding: 11px 14px; cursor: pointer;
-        }
-        .menu-dropdown button:hover { background: var(--panel-2); }
-        .menu-dropdown button.danger { color: var(--danger); }
-        .menu-dropdown .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
 
         .empty { border: 1px dashed var(--line); border-radius: 3px; padding: 42px 20px; text-align: center; }
         .empty p { color: var(--muted); margin: 0 0 6px; }
@@ -451,7 +452,7 @@ export default function Repertoire() {
         .overlay {
           position: fixed; inset: 0; background: rgba(10,12,17,.72);
           align-items: center; justify-content: center; padding: 20px; z-index: 50;
-          display: flex;
+          display: flex; overscroll-behavior: contain;
         }
         .overlay .panel { max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto; margin-bottom: 0; }
         .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
@@ -509,8 +510,8 @@ export default function Repertoire() {
             ))}
           </select>
           <span className="spacer" />
-          <button className="primary" onClick={openAdd} aria-label="Add song">
-            +
+          <button className="primary" onClick={openAdd}>
+            + Add song
           </button>
         </div>
 
@@ -528,7 +529,7 @@ export default function Repertoire() {
         ) : (
           <div>
             {shown.map((s) => (
-              <div className="row" key={s.id}>
+              <div className="row" key={s.id} onClick={() => openEdit(s)}>
                 <div className="meat">
                   <div className="title">
                     {s.title}
@@ -543,45 +544,22 @@ export default function Repertoire() {
                       ))}
                     </div>
                   )}
-                  {(s.songKey || (s.capo && s.capo !== "0") || (s.tuning && s.tuning !== "Standard")) && (
-                    <div className="chordline">
-                      <span className="meta">
-                        {[
-                          s.songKey && `key ${s.songKey}`,
-                          s.capo && s.capo !== "0" && `capo ${s.capo}`,
-                          s.tuning && s.tuning !== "Standard" && s.tuning,
-                        ]
-                          .filter(Boolean)
-                          .join("  ·  ")}
-                      </span>
-                    </div>
-                  )}
+                  <div className="chordline">
+                    <span className="meta">
+                      {[
+                        s.songKey && `key ${s.songKey}`,
+                        s.capo && s.capo !== "0" ? `capo ${s.capo}` : "No capo",
+                        s.tuning && s.tuning !== "Standard" && s.tuning,
+                      ]
+                        .filter(Boolean)
+                        .join("  ·  ")}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="side">
                   <span className="tag">{styleOf(s.style || "strumming").label}</span>
-                  <div className="side-controls">
-                    <FretMarker status={s.status} />
-                    <div className="menu-wrap">
-                      <button
-                        className={`menu-btn ${openMenuId === s.id ? "on" : ""}`}
-                        aria-label={`More actions for ${s.title}`}
-                        aria-haspopup="true"
-                        onClick={() => setOpenMenuId(openMenuId === s.id ? null : s.id)}
-                      >
-                        ⋮
-                      </button>
-                      {openMenuId === s.id && (
-                        <div className="menu-dropdown">
-                          <button onClick={() => openEdit(s)}>Edit</button>
-                          <hr className="divider" />
-                          <button className="danger" onClick={() => requestRemove(s)}>
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <FretMarker status={s.status} />
                 </div>
               </div>
             ))}
@@ -719,12 +697,25 @@ export default function Repertoire() {
             </div>
 
             <div className="actions">
-              <button className="primary solid" onClick={submit}>
-                {editingId ? "Save changes" : "Add song"}
-              </button>
-              <button className="ghost" onClick={closePanel}>
-                Cancel
-              </button>
+              {editingId ? (
+                <>
+                  <button className="primary solid" onClick={submit}>
+                    Save
+                  </button>
+                  <button className="danger-btn" onClick={() => requestRemove({ id: editingId, title: draft.title })}>
+                    Remove
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="primary solid" onClick={submit}>
+                    Add song
+                  </button>
+                  <button className="ghost" onClick={closePanel}>
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
