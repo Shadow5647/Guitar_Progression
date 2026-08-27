@@ -39,7 +39,10 @@
     color: var(--bone);
     font-family: 'Barlow', system-ui, sans-serif;
     min-height: 100%;
-    padding: 28px 18px 72px;
+    padding: calc(env(safe-area-inset-top, 0px) + 28px)
+             calc(env(safe-area-inset-right, 0px) + 18px)
+             calc(env(safe-area-inset-bottom, 0px) + 72px)
+             calc(env(safe-area-inset-left, 0px) + 18px);
   }
   .inner { max-width: 640px; margin: 0 auto; }
 
@@ -628,7 +631,6 @@
     open = true;
     panelOverlayEl.hidden = false;
     render();
-    fTitle.focus();
   }
 
   function openEditPanel(song) {
@@ -650,7 +652,6 @@
     openMenuId = null;
     panelOverlayEl.hidden = false;
     render();
-    fTitle.focus();
   }
 
   function closePanel() {
@@ -788,8 +789,7 @@
 
     var addBtn = document.createElement("button");
     addBtn.className = "primary";
-    addBtn.textContent = "+";
-    addBtn.setAttribute("aria-label", "Add song");
+    addBtn.textContent = "+ Add song";
     addBtn.addEventListener("click", openAddPanel);
     barEl.appendChild(addBtn);
   }

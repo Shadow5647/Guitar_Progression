@@ -1,11 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-/* ------------------------------------------------------------------
-   DATA ACCESS LAYER
-   Every component talks to songRepo — never to storage directly.
-   To move to Supabase later, rewrite the methods below. Nothing else changes.
-------------------------------------------------------------------- */
-
 const KEY = "repertoire:songs";
 
 async function readAll() {
