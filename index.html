@@ -72,6 +72,8 @@
   }
   .select-chip:hover { color: var(--bone); border-color: var(--muted); }
 
+  .add-label-short { display: none; }
+
   .primary {
     font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px;
     letter-spacing: .11em; text-transform: uppercase;
@@ -249,6 +251,12 @@
     .triple { flex-wrap: wrap; }
     .triple .field { min-width: 84px; }
   }
+
+  @media (max-width: 480px) {
+    .select-chip { max-width: 132px; }
+    .add-label-full { display: none; }
+    .add-label-short { display: inline; }
+  }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -366,6 +374,8 @@
     return STATUSES.find(function (s) { return s.id === id; }) || STATUSES[0];
   }
 
+  var PROGRESS_FILTER_OPTIONS = STATUSES.slice().reverse();
+
   function styleOf(id) {
     return STYLES.find(function (s) { return s.id === id; }) || STYLES[1];
   }
@@ -389,6 +399,7 @@
 
   var songs = readAll();
   var artistFilter = "";
+  var statusFilter = "";
   var open = false;
   var editingId = null;
   var pendingRemoveId = null;
@@ -790,21 +801,42 @@
     });
     barEl.appendChild(artistSelect);
 
+    var statusSelect = document.createElement("select");
+    statusSelect.className = "select-chip";
+    statusSelect.setAttribute("aria-label", "Filter by progress");
+    var allProgressOpt = document.createElement("option");
+    allProgressOpt.value = "";
+    allProgressOpt.textContent = "All progress";
+    statusSelect.appendChild(allProgressOpt);
+    PROGRESS_FILTER_OPTIONS.forEach(function (st) {
+      var o = document.createElement("option");
+      o.value = st.id;
+      o.textContent = st.label;
+      statusSelect.appendChild(o);
+    });
+    statusSelect.value = statusFilter;
+    statusSelect.addEventListener("change", function () {
+      statusFilter = statusSelect.value;
+      render();
+    });
+    barEl.appendChild(statusSelect);
+
     var spacer = document.createElement("span");
     spacer.className = "spacer";
     barEl.appendChild(spacer);
 
     var addBtn = document.createElement("button");
     addBtn.className = "primary";
-    addBtn.textContent = "+ Add song";
+    addBtn.innerHTML = '<span class="add-label-full">+ Add song</span><span class="add-label-short">+</span>';
     addBtn.addEventListener("click", openAddPanel);
     barEl.appendChild(addBtn);
   }
 
   function renderList() {
-    var shown = songs.filter(function (s) {
-      return !artistFilter || s.artist === artistFilter;
-    });
+    var shown = songs
+      .filter(function (s) { return !artistFilter || s.artist === artistFilter; })
+      .filter(function (s) { return !statusFilter || s.status === statusFilter; })
+      .sort(function (a, b) { return statusOf(b.status).fret - statusOf(a.status).fret; });
     listEl.innerHTML = "";
 
     if (shown.length === 0) {
@@ -814,7 +846,7 @@
       p.textContent = songs.length === 0 ? "No songs yet." : "Nothing matches this filter.";
       var hint = document.createElement("p");
       hint.className = "hint";
-      hint.textContent = songs.length === 0 ? "Add the first one you're working on." : "Try another artist.";
+      hint.textContent = songs.length === 0 ? "Add the first one you're working on." : "Try a different filter.";
       empty.appendChild(p); empty.appendChild(hint);
       listEl.appendChild(empty);
       return;

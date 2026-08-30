@@ -65,6 +65,7 @@ const STYLES = [
 
 const statusOf = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0];
 const styleOf = (id) => STYLES.find((s) => s.id === id) || STYLES[1];
+const PROGRESS_FILTER_OPTIONS = [...STATUSES].reverse();
 
 const FRET_WIRES = [4, 27, 50, 73, 96, 119, 142];
 const FRET_CENTERS = [15.5, 38.5, 61.5, 84.5, 107.5, 130.5];
@@ -124,6 +125,7 @@ export default function Repertoire() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [artistFilter, setArtistFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [draft, setDraft] = useState(blankDraft());
   const [pendingRemove, setPendingRemove] = useState(null);
   const [artistSuggestOpen, setArtistSuggestOpen] = useState(false);
@@ -260,7 +262,10 @@ export default function Repertoire() {
   const removeChordField = (i) =>
     setDraft((d) => ({ ...d, chords: d.chords.filter((_, idx) => idx !== i) }));
 
-  const shown = songs.filter((s) => !artistFilter || s.artist === artistFilter);
+  const shown = songs
+    .filter((s) => !artistFilter || s.artist === artistFilter)
+    .filter((s) => !statusFilter || s.status === statusFilter)
+    .sort((a, b) => statusOf(b.status).fret - statusOf(a.status).fret);
 
   return (
     <div className="wrap">
@@ -309,6 +314,8 @@ export default function Repertoire() {
           padding: 8px 10px; border-radius: 2px; cursor: pointer; max-width: 200px;
         }
         .select-chip:hover { color: var(--bone); border-color: var(--muted); }
+
+        .add-label-short { display: none; }
 
         .primary {
           font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px;
@@ -485,6 +492,12 @@ export default function Repertoire() {
           .triple { flex-wrap: wrap; }
           .triple .field { min-width: 84px; }
         }
+
+        @media (max-width: 480px) {
+          .select-chip { max-width: 132px; }
+          .add-label-full { display: none; }
+          .add-label-short { display: inline; }
+        }
       `}</style>
 
       <div className="inner">
@@ -509,9 +522,23 @@ export default function Repertoire() {
               </option>
             ))}
           </select>
+          <select
+            className="select-chip"
+            aria-label="Filter by progress"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All progress</option>
+            {PROGRESS_FILTER_OPTIONS.map((st) => (
+              <option key={st.id} value={st.id}>
+                {st.label}
+              </option>
+            ))}
+          </select>
           <span className="spacer" />
           <button className="primary" onClick={openAdd}>
-            + Add song
+            <span className="add-label-full">+ Add song</span>
+            <span className="add-label-short">+</span>
           </button>
         </div>
 
@@ -523,7 +550,7 @@ export default function Repertoire() {
           <div className="empty">
             <p>{songs.length === 0 ? "No songs yet." : "Nothing matches this filter."}</p>
             <p className="hint">
-              {songs.length === 0 ? "Add the first one you're working on." : "Try another artist."}
+              {songs.length === 0 ? "Add the first one you're working on." : "Try a different filter."}
             </p>
           </div>
         ) : (
